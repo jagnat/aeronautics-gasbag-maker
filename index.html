@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aeronautics Gasbag Maker</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="panel">
+        <header>
+          <h1>Aeronautics Gasbag Maker</h1>
+          <input id="name" type="text" spellcheck="false" aria-label="Design name" />
+        </header>
+
+        <section>
+          <h2>Shape</h2>
+          <label class="row">
+            <span>Preset</span>
+            <select id="preset"><option value="">Load preset…</option></select>
+          </label>
+          <label class="check" title="Stretch the top outline lengthwise so its nose and tail line up with the side outline">
+            <input type="checkbox" id="linkTop" /> Top view follows side length
+          </label>
+        </section>
+
+        <section>
+          <h2>Size</h2>
+          <div class="num" data-key="length" data-min="4" data-max="400" data-step="1"><span>Length</span></div>
+          <div class="num" data-key="width" data-min="2" data-max="200" data-step="1"><span>Width</span></div>
+          <div class="num" data-key="height" data-min="2" data-max="200" data-step="1"><span>Height</span></div>
+          <div class="num" data-key="scale" data-min="0.1" data-max="4" data-step="0.01"><span>Scale</span></div>
+          <p class="hint">Proportions come from the outlines. Changing any one of these resizes the whole shape.</p>
+        </section>
+
+        <section>
+          <h2>Cross-section</h2>
+          <div class="num" data-key="sectionTop" data-min="1" data-max="6" data-step="0.05"><span>Top</span></div>
+          <div class="num" data-key="sectionBottom" data-min="1" data-max="6" data-step="0.05"><span>Bottom</span></div>
+          <p class="hint">2 is round. Higher is boxier, lower comes to a ridge.</p>
+        </section>
+
+        <section>
+          <h2>Blocks</h2>
+          <label class="check"><input type="checkbox" id="hollow" /> Hollow</label>
+          <div class="num" data-key="shell" data-min="1" data-max="4" data-step="1"><span>Shell</span></div>
+          <label class="row">
+            <span>Material</span>
+            <select id="material">
+              <option value="envelope">Aeronautics envelope</option>
+              <option value="wool">Wool</option>
+            </select>
+          </label>
+          <label class="row"><span>Color</span><select id="color"></select></label>
+        </section>
+
+        <section>
+          <h2>View</h2>
+          <label class="check"><input type="checkbox" id="cutaway" /> Cut away near half</label>
+          <label class="check"><input type="checkbox" id="overlay" checked /> Blocks behind outlines</label>
+          <label class="check"><input type="checkbox" id="player" checked /> Player for scale</label>
+          <div class="buttons">
+            <button id="fit-view">Reset views</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>File</h2>
+          <button id="export" class="primary">Download .nbt</button>
+          <div class="buttons">
+            <button id="save">Save design</button>
+            <button id="load">Open design</button>
+            <input id="load-file" type="file" accept=".json,application/json" hidden />
+          </div>
+          <div class="buttons">
+            <button id="undo" title="Ctrl+Z">Undo</button>
+            <button id="redo" title="Ctrl+Shift+Z">Redo</button>
+          </div>
+        </section>
+
+        <p class="readout" id="stats"></p>
+        <details class="help">
+          <summary>Editing</summary>
+          <ul>
+            <li>Drag points and handles</li>
+            <li>Double-click the outline to add a point</li>
+            <li>Double-click a point to toggle smooth or corner</li>
+            <li>Alt-drag a point to pull out handles</li>
+            <li>Select a point and press Delete to remove it</li>
+            <li>Scroll to zoom, right-drag to pan</li>
+          </ul>
+        </details>
+      </aside>
+
+      <main>
+        <div id="editors">
+          <div class="editor"><canvas id="side"></canvas></div>
+          <div class="editor"><canvas id="plan"></canvas></div>
+        </div>
+        <div id="view3d"></div>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

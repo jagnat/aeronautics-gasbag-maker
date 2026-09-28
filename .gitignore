@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.vite/
+
+# saved third-party page source, reference only
+resources/view-source_*
+
+*.log
+npm-debug.log*
+*.local
+.env
+.env.*
+
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
