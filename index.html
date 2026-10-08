@@ -20,6 +20,13 @@
             <span>Preset</span>
             <select id="preset"><option value="">Load preset…</option></select>
           </label>
+          <label class="row" title="Along length: sections run nose to tail, for zeppelins. Stacked: the top outline is the horizontal slice, scaled to the side outline at each height, for balloons">
+            <span>Build</span>
+            <select id="build">
+              <option value="sweep">Along length</option>
+              <option value="stack">Stacked slices</option>
+            </select>
+          </label>
           <label class="check" title="Stretch the top outline lengthwise so its nose and tail line up with the side outline">
             <input type="checkbox" id="linkTop" /> Top view follows side length
           </label>
@@ -38,7 +45,7 @@
           <h2>Cross-section</h2>
           <div class="num" data-key="sectionTop" data-min="1" data-max="6" data-step="0.05"><span>Top</span></div>
           <div class="num" data-key="sectionBottom" data-min="1" data-max="6" data-step="0.05"><span>Bottom</span></div>
-          <p class="hint">2 is round. Higher is boxier, lower comes to a ridge.</p>
+          <p class="hint" id="section-hint">2 is round. Higher is boxier, lower comes to a ridge.</p>
         </section>
 
         <section>
@@ -69,6 +76,15 @@
           <h2>File</h2>
           <button id="export" class="primary">Download .nbt</button>
           <div class="buttons">
+            <button id="export-views" title="Side, top and front silhouettes in one image">Download views .png</button>
+            <select id="views-px" aria-label="Pixels per block">
+              <option value="1">1 px/block</option>
+              <option value="4">4 px/block</option>
+              <option value="8">8 px/block</option>
+              <option value="16">16 px/block</option>
+            </select>
+          </div>
+          <div class="buttons">
             <button id="save">Save design</button>
             <button id="load">Open design</button>
             <input id="load-file" type="file" accept=".json,application/json" hidden />
@@ -98,6 +114,7 @@
           <div class="editor"><canvas id="side"></canvas></div>
           <div class="editor"><canvas id="plan"></canvas></div>
         </div>
+        <div id="splitter" title="Drag to resize, double-click to reset"></div>
         <div id="view3d"></div>
       </main>
     </div>

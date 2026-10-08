@@ -2,7 +2,7 @@ import { type Path, type Vec, bounds, cubic, sample, segment, segmentCount, spli
 import type { Projection } from './voxelize';
 
 export interface EditorOptions {
-  title: string;
+  title(): string;
   // open half path mirrored across the axis, endpoints locked to it
   mirror: boolean;
   getPath(): Path;
@@ -83,6 +83,8 @@ export class BezierEditor {
   private drag: Drag | null = null;
   private moved = false;
   private cursor: Vec | null = null;
+  // world y of the crosshair, only in the editor under the pointer
+  private crossY: number | null = null;
   private pending = false;
 
   constructor(private canvas: HTMLCanvasElement, private view: SharedView, private o: EditorOptions) {
@@ -96,6 +98,7 @@ export class BezierEditor {
     canvas.addEventListener('pointerup', (e) => this.up(e));
     canvas.addEventListener('pointerleave', () => {
       this.cursor = null;
+      this.crossY = null;
       this.view.cursorX = null;
       this.view.redraw();
     });
@@ -135,6 +138,8 @@ export class BezierEditor {
     this.canvas.style.width = `${r.width}px`;
     this.canvas.style.height = `${r.height}px`;
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // sizing clears the canvas, repaint before the frame is shown
+    this.draw();
     this.view.redraw();
   }
 
@@ -241,7 +246,9 @@ export class BezierEditor {
   private move(e: PointerEvent) {
     const s = this.pos(e);
     this.cursor = s;
-    this.view.cursorX = this.screenToWorld(s).x;
+    const w = this.screenToWorld(s);
+    this.view.cursorX = w.x;
+    this.crossY = w.y;
     const d = this.drag;
     if (!d) {
       const h = this.hitTest(s);
@@ -265,6 +272,10 @@ export class BezierEditor {
       const end = this.isEnd(d.i);
       if (!(end && this.o.lockEndsX())) node.x = n.x + d.off.x;
       node.y = end ? 0 : n.y + d.off.y;
+      // crosshair follows the point, not the grab offset
+      const scale = this.view.getScale();
+      this.view.cursorX = node.x * scale;
+      this.crossY = node.y * scale;
     } else {
       const other = d.kind === 'hout' ? 'hin' : 'hout';
       const h = { x: n.x - node.x, y: n.y - node.y };
@@ -436,6 +447,11 @@ export class BezierEditor {
       ctx.beginPath();
       ctx.moveTo(sx, 0);
       ctx.lineTo(sx, ch);
+      if (this.crossY !== null) {
+        const sy = Math.round(this.worldToScreen(0, this.crossY).y) + 0.5;
+        ctx.moveTo(0, sy);
+        ctx.lineTo(cw, sy);
+      }
       ctx.stroke();
     }
 
@@ -504,7 +520,7 @@ export class BezierEditor {
     // labels
     ctx.font = '600 12px system-ui, sans-serif';
     ctx.fillStyle = css('--text');
-    ctx.fillText(this.o.title, 12, 20);
+    ctx.fillText(this.o.title(), 12, 20);
     ctx.font = '11px ui-monospace, monospace';
     ctx.fillStyle = muted;
     const dimLabel = `${Math.round((b.x1 - b.x0) * scale)} × ${Math.round((b.y1 - b.y0) * scale)} blocks`;

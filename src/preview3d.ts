@@ -70,6 +70,8 @@ export class Preview {
     this.camera.aspect = r.width / Math.max(1, r.height);
     this.camera.updateProjectionMatrix();
     if (this.lastFit && !this.userMoved) this.fit(this.lastFit);
+    // sizing clears the canvas, repaint before the frame is shown
+    this.renderer.render(this.scene, this.camera);
   }
 
   update(g: Grid, o: PreviewOptions) {

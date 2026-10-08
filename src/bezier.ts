@@ -62,6 +62,8 @@ export function intervalsAt(poly: Vec[], x: number): [number, number][] {
   return out;
 }
 
+export const transpose = (pts: Vec[]): Vec[] => pts.map((p) => ({ x: p.y, y: p.x }));
+
 export function bounds(pts: Vec[]) {
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const p of pts) {

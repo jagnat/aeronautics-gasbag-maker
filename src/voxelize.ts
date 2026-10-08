@@ -1,5 +1,5 @@
-import { intervalsAt, sample } from './bezier';
-import type { Design } from './model';
+import { type Vec, intervalsAt, sample, transpose } from './bezier';
+import { type Design, shapeBounds } from './model';
 
 export interface Grid {
   sx: number;
@@ -58,14 +58,8 @@ export function voxelize(d: Design): Grid {
   const side = sample(d.side).map((p) => ({ x: p.x * s, y: p.y * s }));
   const plan = sample(d.plan).map((p) => ({ x: p.x * s, y: p.y * s }));
 
-  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z1 = 0;
-  for (const p of side) {
-    x0 = Math.min(x0, p.x);
-    x1 = Math.max(x1, p.x);
-    y0 = Math.min(y0, p.y);
-    y1 = Math.max(y1, p.y);
-  }
-  for (const p of plan) z1 = Math.max(z1, Math.abs(p.y));
+  const b = shapeBounds(d);
+  const x0 = b.x0 * s, x1 = b.x1 * s, y0 = b.y0 * s, y1 = b.y1 * s, z1 = b.z * s;
 
   // center n cells on each axis so the block count matches the rounded size,
   // odd counts put a block on the center line
@@ -73,6 +67,16 @@ export function voxelize(d: Design): Grid {
   const ox = (x0 + x1 - sx) / 2, oy = (y0 + y1 - sy) / 2, oz = -sz / 2;
   const g: Grid = { sx, sy, sz, ox, oy, oz, data: new Uint8Array(sx * sy * sz), blocks: 0, interior: 0 };
 
+  if (d.build === 'stack') fillStack(g, side, plan);
+  else fillSweep(g, d, side, plan);
+
+  if (d.hollow) hollow(g, Math.max(1, d.shell));
+  for (let n = 0; n < g.data.length; n++) if (g.data[n]) g.blocks++;
+  return g;
+}
+
+function fillSweep(g: Grid, d: Design, side: Vec[], plan: Vec[]) {
+  const { sx, sy, sz, ox, oy, oz } = g;
   for (let i = 0; i < sx; i++) {
     const xc = ox + i + 0.5;
     const siv = intervalsAt(side, xc);
@@ -102,10 +106,44 @@ export function voxelize(d: Design): Grid {
     // slices thinner than a block keep a core so tips taper instead of vanishing
     if (!any) fillCore(g, i, widest(siv), widest(piv));
   }
+}
 
-  if (d.hollow) hollow(g, Math.max(1, d.shell));
-  for (let n = 0; n < g.data.length; n++) if (g.data[n]) g.blocks++;
-  return g;
+function fillStack(g: Grid, side: Vec[], plan: Vec[]) {
+  const { sx, sy, sz, ox, oy, oz } = g;
+  const rows = transpose(side);
+  let p0 = Infinity, p1 = -Infinity;
+  for (const p of plan) {
+    p0 = Math.min(p0, p.x);
+    p1 = Math.max(p1, p.x);
+  }
+  const pmid = (p0 + p1) / 2, phalf = (p1 - p0) / 2;
+  if (phalf < 1e-6) return;
+
+  for (let j = 0; j < sy; j++) {
+    const siv = intervalsAt(rows, oy + j + 0.5);
+    if (!siv.length) continue;
+    let any = false;
+    for (let i = 0; i < sx; i++) {
+      const xc = ox + i + 0.5;
+      const sp = find(siv, xc);
+      if (!sp) continue;
+      const half = (sp[1] - sp[0]) / 2;
+      if (half < 1e-6) continue;
+      // where this cell falls along the plan outline, and how much the outline is shrunk here
+      const u = (xc - (sp[0] + sp[1]) / 2) / half;
+      const shrink = half / phalf;
+      const piv = mirrorMerge(intervalsAt(plan, pmid + u * phalf));
+      for (let k = 0; k < sz; k++) {
+        if (!find(piv, (oz + k + 0.5) / shrink)) continue;
+        g.data[idx(g, i, j, k)] = 1;
+        any = true;
+      }
+    }
+    // slices thinner than a block keep a core, same as sweep
+    if (!any)
+      for (const i of nearestCells(ox, sx, widest(siv)))
+        for (const k of nearestCells(oz, sz, [0, 0])) g.data[idx(g, i, j, k)] = 1;
+  }
 }
 
 const DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
@@ -174,4 +212,12 @@ export function projectPlan(g: Grid): Projection {
     for (let j = 0; j < g.sy; j++)
       for (let i = 0; i < g.sx; i++) if (g.data[idx(g, i, j, k)]) cells[k * g.sx + i] = 1;
   return { ox: g.ox, oy: g.oz, w: g.sx, h: g.sz, cells };
+}
+
+export function projectFront(g: Grid): Projection {
+  const cells = new Uint8Array(g.sz * g.sy);
+  for (let k = 0; k < g.sz; k++)
+    for (let j = 0; j < g.sy; j++)
+      for (let i = 0; i < g.sx; i++) if (g.data[idx(g, i, j, k)]) cells[j * g.sz + k] = 1;
+  return { ox: g.oz, oy: g.oy, w: g.sz, h: g.sy, cells };
 }

@@ -1,6 +1,10 @@
-import { type Node, type Path, bounds, sample } from './bezier';
+import { type Node, type Path, type Vec, bounds, intervalsAt, sample, transpose } from './bezier';
 
 export type EnvelopeMaterial = 'wool' | 'envelope';
+
+// sweep: sections along the length, sized by side height and plan width
+// stack: horizontal slices, the plan outline scaled to the side width at each height
+export type Build = 'sweep' | 'stack';
 
 // outlines share one unit, so proportions live in the curves and scale is blocks per unit
 // side: closed outline in (x, y); plan: open half outline in (x, z) from nose to tail on the axis, mirrored
@@ -9,6 +13,7 @@ export interface Design {
   name: string;
   side: Path;
   plan: Path;
+  build: Build;
   scale: number;
   // plan is stretched lengthwise to match the side outline's nose and tail
   linkTop: boolean;
@@ -41,11 +46,30 @@ export const COLORS: Record<string, string> = {
   black: '#141519',
 };
 
+const STACK_ROWS = 256;
+
+// widest horizontal run of the outline
+function maxRun(side: Vec[], y0: number, y1: number): number {
+  const t = transpose(side);
+  let w = 0;
+  for (let r = 0; r < STACK_ROWS; r++) {
+    const y = y0 + ((r + 0.5) / STACK_ROWS) * (y1 - y0);
+    for (const [a, b] of intervalsAt(t, y)) w = Math.max(w, b - a);
+  }
+  return w;
+}
+
 export function shapeBounds(d: Design) {
   // same sampling as voxelize so rounded sizes agree
-  const sb = bounds(sample(d.side));
+  const side = sample(d.side);
+  const sb = bounds(side);
   const pb = bounds(sample(d.plan));
-  return { x0: sb.x0, x1: sb.x1, y0: sb.y0, y1: sb.y1, z: Math.max(Math.abs(pb.y0), Math.abs(pb.y1)) };
+  let z = Math.max(Math.abs(pb.y0), Math.abs(pb.y1));
+  if (d.build === 'stack') {
+    const len = pb.x1 - pb.x0;
+    z = len > 1e-6 ? (z * maxRun(side, sb.y0, sb.y1)) / len : 0;
+  }
+  return { x0: sb.x0, x1: sb.x1, y0: sb.y0, y1: sb.y1, z };
 }
 
 // unit extents of the shape
@@ -93,6 +117,7 @@ const open = (...nodes: Node[]): Path => ({ nodes, closed: false });
 
 // presets are authored normalized: x in [0,1], y in [-0.5,0.5], stretched by length/width/height
 type Preset = Pick<Design, 'name' | 'side' | 'plan' | 'sectionTop' | 'sectionBottom'> & {
+  build?: Build;
   length: number;
   width: number;
   height: number;
@@ -175,6 +200,19 @@ export const PRESETS: Preset[] = [
       sn(1, 0, 0, -1, 0.2),
     ),
   },
+  {
+    name: 'Hot Air Balloon',
+    build: 'stack',
+    length: 24, width: 24, height: 30, sectionTop: 2, sectionBottom: 2,
+    side: closed(
+      sn(0, 0.15, 0, 1, 0.3, 0.2),
+      sn(0.5, 0.5, 1, 0, 0.28),
+      sn(1, 0.15, 0, -1, 0.2, 0.3),
+      cn(0.6, -0.5, [0.05, 0.15], [0, 0]),
+      cn(0.4, -0.5, [0, 0], [-0.05, 0.15]),
+    ),
+    plan: open(sn(0, 0, 0, 1, 0.276), sn(0.5, 0.5, 1, 0, 0.276), sn(1, 0, 0, -1, 0.276)),
+  },
 ];
 
 function stretch(p: Path, kx: number, ky: number) {
@@ -195,6 +233,7 @@ export function designFromPreset(p: Preset, base?: Design): Design {
     name: c.name,
     side: c.side,
     plan: c.plan,
+    build: c.build ?? 'sweep',
     scale: 1,
     linkTop: base?.linkTop ?? true,
     sectionTop: c.sectionTop,
@@ -218,5 +257,6 @@ export function parseDesign(v: unknown): Design | null {
     d.linkTop = false;
   }
   if (d.version !== 2 || typeof d.scale !== 'number') return null;
+  if (d.build !== 'stack') d.build = 'sweep';
   return d as Design;
 }

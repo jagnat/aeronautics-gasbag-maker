@@ -183,7 +183,7 @@ button.primary {
 
 main {
   display: grid;
-  grid-template-columns: minmax(360px, 1fr) minmax(360px, 1.1fr);
+  grid-template-columns: minmax(200px, var(--split, 48%)) 5px minmax(200px, 1fr);
   min-width: 0;
   min-height: 0;
 }
@@ -191,8 +191,18 @@ main {
 #editors {
   display: grid;
   grid-template-rows: 1fr 1fr;
-  border-right: 1px solid var(--border);
   min-height: 0;
+}
+
+#splitter {
+  background: var(--border);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+#splitter:hover,
+#splitter.dragging {
+  background: var(--accent);
 }
 
 .editor {
@@ -234,5 +244,8 @@ main {
   main {
     grid-template-columns: 1fr;
     grid-template-rows: 70vh 60vh;
+  }
+  #splitter {
+    display: none;
   }
 }

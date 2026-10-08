@@ -3,6 +3,7 @@ import { BezierEditor, SharedView } from './editor2d';
 import { COLORS, type Design, PRESETS, alignPlan, blockId, designFromPreset, dims, extents, parseDesign } from './model';
 import { exportStructure } from './nbt';
 import { Preview } from './preview3d';
+import { renderViews } from './views';
 import { type Grid, type Projection, projectPlan, projectSide, voxelize } from './voxelize';
 
 const STORAGE_KEY = 'gasbag-maker:design';
@@ -87,7 +88,7 @@ const overlayOn = () => $<HTMLInputElement>('overlay').checked;
 const view = new SharedView(() => design.scale);
 
 new BezierEditor($('side'), view, {
-  title: 'Side',
+  title: () => 'Side',
   mirror: false,
   getPath: () => design.side,
   getOverlay: () => (overlayOn() ? sideProj : null),
@@ -101,7 +102,7 @@ new BezierEditor($('side'), view, {
 });
 
 new BezierEditor($('plan'), view, {
-  title: 'Top (mirrored)',
+  title: () => (design.build === 'stack' ? 'Top slice (mirrored)' : 'Top (mirrored)'),
   mirror: true,
   getPath: () => design.plan,
   getOverlay: () => (overlayOn() ? planProj : null),
@@ -231,6 +232,16 @@ function syncUI() {
   $<HTMLInputElement>('name').value = design.name;
   $<HTMLInputElement>('hollow').checked = design.hollow;
   $<HTMLInputElement>('linkTop').checked = design.linkTop;
+  $<HTMLSelectElement>('build').value = design.build;
+  // stack takes its section from the top outline
+  const stack = design.build === 'stack';
+  for (const key of ['sectionTop', 'sectionBottom'] as const) {
+    numInputs[key].range.disabled = stack;
+    numInputs[key].num.disabled = stack;
+  }
+  $('section-hint').textContent = stack
+    ? 'Not used when stacking. The top outline is the slice shape.'
+    : '2 is round. Higher is boxier, lower comes to a ridge.';
   $<HTMLSelectElement>('material').value = design.material;
   colorSel.value = design.color;
 }
@@ -251,6 +262,14 @@ $<HTMLInputElement>('linkTop').addEventListener('change', (e) => {
   if (design.linkTop) alignPlan(design);
   commit();
   regen();
+});
+
+$<HTMLSelectElement>('build').addEventListener('change', (e) => {
+  design.build = (e.target as HTMLSelectElement).value as Design['build'];
+  commit();
+  syncUI();
+  regen();
+  fitViews();
 });
 
 $<HTMLSelectElement>('material').addEventListener('change', (e) => {
@@ -277,6 +296,12 @@ $('export').addEventListener('click', async () => {
   const g = voxelize(design);
   const bytes = await exportStructure(g, blockId(design));
   download(new Blob([bytes as BlobPart], { type: 'application/octet-stream' }), `${slug(design.name)}.nbt`);
+});
+
+$('export-views').addEventListener('click', () => {
+  const px = Number($<HTMLSelectElement>('views-px').value);
+  const canvas = renderViews(voxelize(design), COLORS[design.color] ?? '#ffffff', px);
+  canvas.toBlob((blob) => blob && download(blob, `${slug(design.name)}_views.png`));
 });
 
 $('save').addEventListener('click', () => {
@@ -315,6 +340,43 @@ window.addEventListener('keydown', (e) => {
   else return;
   e.preventDefault();
 });
+
+// draggable divider between the outline editors and the 3d preview
+
+const SPLIT_KEY = 'gasbag-maker:split';
+const mainEl = document.querySelector<HTMLElement>('main')!;
+const splitter = $('splitter');
+
+function setSplit(f: number | null) {
+  if (f === null) mainEl.style.removeProperty('--split');
+  else mainEl.style.setProperty('--split', `${(f * 100).toFixed(2)}%`);
+  try {
+    if (f === null) localStorage.removeItem(SPLIT_KEY);
+    else localStorage.setItem(SPLIT_KEY, String(f));
+  } catch {
+    // storage unavailable
+  }
+}
+
+splitter.addEventListener('pointerdown', (e) => {
+  splitter.setPointerCapture(e.pointerId);
+  splitter.classList.add('dragging');
+  e.preventDefault();
+});
+splitter.addEventListener('pointermove', (e) => {
+  if (!splitter.hasPointerCapture(e.pointerId)) return;
+  const r = mainEl.getBoundingClientRect();
+  setSplit(Math.min(0.85, Math.max(0.15, (e.clientX - r.left) / r.width)));
+});
+splitter.addEventListener('pointerup', () => splitter.classList.remove('dragging'));
+splitter.addEventListener('dblclick', () => setSplit(null));
+
+try {
+  const f = parseFloat(localStorage.getItem(SPLIT_KEY) ?? '');
+  if (Number.isFinite(f)) setSplit(f);
+} catch {
+  // storage unavailable
+}
 
 function download(blob: Blob, name: string) {
   const a = document.createElement('a');
